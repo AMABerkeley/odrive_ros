@@ -247,7 +247,7 @@ class ODriveNode(object):
                     self.driver.engaged(): #(self.last_speed > 0):
                 #rospy.logdebug("No /cmd_vel received in > 1s, stopping.")
             
-                self.driver.drive(0,0)
+                self.driver.drive_vel(0,0)
                 self.last_speed = 0
                 self.last_cmd_vel_time = time_now
                 self.driver.release() # and release
@@ -263,8 +263,6 @@ class ODriveNode(object):
                 if not self.driver.prerolled():
                     self.driver.preroll()
                     return
-            except:
-                rospy.logerr("Fast timer exception on preroll:" + traceback.format_exc())
                 self.fast_timer_comms_active = False                
             
             try:

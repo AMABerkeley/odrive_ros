@@ -83,7 +83,7 @@ class ODriveInterfaceSerial(object):
         self.port.write('w axis1.requested_state %d\n' % AXIS_STATE_IDLE)
         time.sleep(0.01)
             
-    def drive(self, left_motor_val, right_motor_val):
+    def drive_vel(self, left_motor_val, right_motor_val):
         if not self.port:
             self.logger.error("Not connected.")
             return
