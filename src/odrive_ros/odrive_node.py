@@ -174,6 +174,8 @@ class ODriveNode(object):
             
         # TODO: change to be position, current or vel control instead
         # check and stop motor if no vel command has been received in > 1s
+
+        """
         try:
             if self.fast_timer_comms_active and \
                     (time_now - self.last_cmd_time).to_sec() > 1.0 and \
@@ -186,6 +188,8 @@ class ODriveNode(object):
             rospy.logerr("Fast timer exception on cmd timeout:" + traceback.format_exc())
             self.fast_timer_comms_active = False
         
+        """
+
         # handle sending drive commands.
         # from here, any errors return to get out
         if self.fast_timer_comms_active and not self.command_queue.empty():
@@ -321,7 +325,7 @@ class ODriveNode(object):
             self.left_current_accumulator = 0.0
             self.right_current_accumulator = 0.0
 
-    def pub_raw_kinematics(self, time_now):
+    def pub_raw_kinematics(self):
         self.raw_kinematics_publisher_encoder_left.publish(self.new_pos_l)
         self.raw_kinematics_publisher_encoder_right.publish(self.new_pos_r)
         self.raw_kinematics_publisher_vel_left.publish(self.vel_l)
