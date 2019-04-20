@@ -1,5 +1,4 @@
-i
-port serial
+import serial
 from serial.serialutil import SerialException
 
 import sys
