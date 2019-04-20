@@ -3,6 +3,13 @@
     <arg name="connect_on_startup"   default="true"/>
     <arg name="calibrate_on_startup" default="true"/>
     <arg name="engage_on_startup"    default="true"/>
+    <arg name="fl_leg_id"    default="207C37823548"/>
+    <arg name="fr_leg_id"    default=""/>
+    <arg name="bl_leg_id"    default=""/>
+    <arg name="br_leg_id"    default=""/>
+    <arg name="f_hip_id"    default=""/>
+    <arg name="b_hip_id"    default=""/>
+
 
     <arg name="publish_odom"   default="true"/>
     <arg name="publish_tf"     default="false"/>

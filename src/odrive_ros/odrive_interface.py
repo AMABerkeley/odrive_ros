@@ -1,4 +1,5 @@
-import serial
+i
+port serial
 from serial.serialutil import SerialException
 
 import sys
@@ -39,7 +40,7 @@ class ODriveInterfaceAPI(object):
     def __del__(self):
         self.disconnect()
                     
-    def connect(self, port=None, right_axis=0, timeout=30, odrive_id="207C37823548"):
+    def connect(self, port=None, right_axis=0, timeout=30, odrive_id=None):
         """
         Connect by serial numbers
 
