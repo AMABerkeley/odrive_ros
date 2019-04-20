@@ -53,9 +53,9 @@ class ODriveNode(object):
         self.calibrate_on_startup = rospy.get_param('~calibrate_on_startup', False)
         self.engage_on_startup    = rospy.get_param('~engage_on_startup', True)
         
-        self.has_preroll     = rospy.get_param('~use_preroll', True)
+        self.has_preroll          = rospy.get_param('~use_preroll', True)
                 
-        self.publish_current = rospy.get_param('~publish_current', True)
+        self.publish_current      = rospy.get_param('~publish_current', True)
         self.publish_raw_kinematics = rospy.get_param('~publish_raw_kinematics', True)
         
         self.odom_calc_hz    = rospy.get_param('~odom_calc_hz', 25)
