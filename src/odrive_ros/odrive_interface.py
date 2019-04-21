@@ -218,9 +218,9 @@ class ODriveInterfaceAPI(object):
                 self.left_axis.controller.config.control_mode = mode
                 if trajectory:
                     self.set_trajectory(self.left_axis.trap_traj.config, trajectory)
-                    self.left_axis.controller.move_incremental(left, False)
-                else:
-                    self.left_axis.controller.pos_setpoint += left
+              #      self.left_axis.controller.move_incremental(left, False)
+              #  else:
+                self.left_axis.controller.pos_setpoint += left
 
             
             if right is not None:
