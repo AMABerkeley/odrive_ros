@@ -33,12 +33,9 @@ class ODriveNode(object):
     prerolling = False
     
     # Robot wheel_track params for velocity -> motor speed conversion
-    wheel_track = None
-    tyre_circumference = None
     encoder_counts_per_rev = None
-    m_s_to_value = 1.0
     axis_for_right = 0
-    encoder_cpr = 4096 # TODO pass in as argument
+    encoder_cpr = 8192 # TODO pass in as argument
     
     # Startup parameters
     connect_on_startup = False
@@ -53,7 +50,7 @@ class ODriveNode(object):
         self.calibrate_on_startup = rospy.get_param('~calibrate_on_startup', False)
         self.engage_on_startup    = rospy.get_param('~engage_on_startup', True)
         
-        self.has_preroll          = rospy.get_param('~use_preroll', True)
+        self.has_preroll          = rospy.get_param('~use_preroll', False)
                 
         self.publish_current      = rospy.get_param('~publish_current', True)
         self.publish_raw_kinematics = rospy.get_param('~publish_raw_kinematics', True)
@@ -150,9 +147,6 @@ class ODriveNode(object):
         if self.fast_timer_comms_active:
             try:
                 # read all required values from ODrive for odometry
-                self.encoder_cpr = self.driver.encoder_cpr
-                self.m_s_to_value = self.encoder_cpr/self.tyre_circumference # calculated
-                
                 self.vel_l = self.driver.left_axis.encoder.vel_estimate  # units: encoder counts/s
                 self.vel_r = -self.driver.right_axis.encoder.vel_estimate # neg is forward for right
                 self.new_pos_l = self.driver.left_axis.encoder.pos_cpr    # units: encoder counts
@@ -257,8 +251,6 @@ class ODriveNode(object):
         rospy.loginfo("ODrive connected.")
         
         # okay, connected, 
-        self.m_s_to_value = self.driver.encoder_cpr/self.tyre_circumference
-        
         self.fast_timer_comms_active = True
         
         return (True, "ODrive connected successfully")
