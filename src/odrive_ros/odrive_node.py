@@ -67,6 +67,7 @@ class ODriveNode(object):
         rospy.Service('release_motors',    std_srvs.srv.Trigger, self.release_motor)
         
         self.command_queue = Queue.Queue(maxsize=5)
+        self.command_subscribe = rospy.Subscriber("/motor_cmd", Twist, self.cmd_callback, queue_size=2)
         
         if self.publish_current:
             self.current_loop_count = 0
@@ -199,36 +200,38 @@ class ODriveNode(object):
                 rospy.logerr("Queue was empty??" + traceback.format_exc())
                 return
             
-            try:
 
+        control_type = motor_command.control_type
+        motor_num = motor_command.motor_num
+        value = motor_command.value
+        trajectory = motor_command.trajectory if len(motor_command.trajectory) == 4 else None
 
-                # TODO: check how to deal with null command parameters
-                if motor_command[0] == 'drive_velocity':
-                        if not self.driver.engaged():
-                            self.driver.engage()
-                        left_val, right_val = motor_command[1]
-                        self.driver.drive_vel(left_val, right_val)
-                        self.last_cmd_time = time_now
-                elif motor_command[0] == 'drive_position':
-                        if not self.driver.engaged():
-                            self.driver.engage()
-                        left_val, right_val = motor_command[1]
-                        self.driver.drive_pos(left_val, right_val)
-                        self.last_cmd_time = time_now
-                elif motor_command[0] == 'drive_current':
-                        if not self.driver.engaged():
-                            self.driver.engage()
-                        left_linear_val, right_linear_val = motor_command[1]
-                        self.driver.drive(left_linear_val, right_linear_val)
-                        self.last_cmd_time = time_now
-                elif motor_command[0] == 'release':
-                    pass
-                else:
-                    pass
+        try:
+            drive_command = ('drive', control_type, motor_num, value, trajectory)
+            if motor_command[0] == 'drive':
+                control_type = motor_command[1]
+                motor_num = motor_command[2]
+                value = motor_command[3]
+                trajectory = motor_command[4]
+                if not self.driver.engaged():
+                    self.driver.engage()
+                left_val = value if motor_num == 0 else None
+                right_val = value if motor_num == 1 else None
+                if control_type == 0:
+                    self.driver.drive_pos(left_val, right_val, trajectory)
+                elif control_type == 1:
+                    self.driver.drive_vel(left_val, right_val)
+                elif control_type == 2:
+                    self.driver.drive_current(left_val, right_val)
+                self.last_cmd_time = time_now
+            elif motor_command[0] == 'release':
+                pass
+            else:
+                pass
 
-            except:
-                rospy.logerr("Fast timer exception on %s cmd: %s" % (motor_command[0], traceback.format_exc()))
-                self.fast_timer_comms_active = False
+        except:
+            rospy.logerr("Fast timer exception on %s cmd: %s" % (str(motor_command), traceback.format_exc()))
+            self.fast_timer_comms_active = False
 
         
     def terminate(self):
@@ -322,7 +325,24 @@ class ODriveNode(object):
         self.raw_kinematics_publisher_encoder_right.publish(self.new_pos_r)
         self.raw_kinematics_publisher_vel_left.publish(self.vel_l)
         self.raw_kinematics_publisher_vel_right.publish(self.vel_r)
-        
+
+
+    def cmd_callback(self, msg):
+        rospy.loginfo("Received a /DriveCommand message!")
+        rospy.loginfo("Control Type: %i, Motor Number: %i, value: %f, trajectory: %s" % (msg.control_type, msg.motor_num, msg.value, str(msg.trajectory)))
+
+        control_type = msg.control_type
+        motor_num = msg.motor_num
+        value = msg.value
+        trajectory = msg.trajectory if len(msg.trajectory) == 4 else None
+
+        try:
+            drive_command = ('drive', control_type, motor_num, value, trajectory)
+            self.command_queue.put_nowait(drive_command)
+        except Queue.Full:
+            pass
+        self.last_cmd_time = rospy.Time.now()
+    
 def start_odrive():
     rospy.init_node('odrive')
     odrive_node = ODriveNode()
