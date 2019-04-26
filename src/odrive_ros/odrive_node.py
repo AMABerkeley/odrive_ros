@@ -139,13 +139,7 @@ class ODriveNode(object):
             
             else:
                 pass # loop around and try again
-        
-    def fast_timer(self, timer_event):
-        time_now = rospy.Time.now()
-        self.fast_loop_count += 1
-        rospy.logerr("fast loop freq" + str((self.fast_loop_count)/(rospy.get_time() - self.start_time)))
-	# rospy.logerr(time_now)
-        # in case of failure, assume some values are zero
+    def pub_state(self):
         self.vel_l = 0
         self.vel_r = 0
         self.new_pos_l = 0
@@ -154,49 +148,43 @@ class ODriveNode(object):
         self.current_r = 0
         
         # Handle reading from Odrive and sending odometry
-        if self.fast_timer_comms_active:
-            try:
-                # read all required values from ODrive for odometry
-                self.vel_l = self.driver.left_axis.encoder.vel_estimate  # units: encoder counts/s
-                self.vel_r = -self.driver.right_axis.encoder.vel_estimate # neg is forward for right
-                self.new_pos_l = self.driver.left_axis.encoder.pos_cpr    # units: encoder counts
-                self.new_pos_r = -self.driver.right_axis.encoder.pos_cpr  # sign!
-                
-                # for current
-                self.current_l = self.driver.left_axis.motor.current_control.Ibus
-                self.current_r = self.driver.right_axis.motor.current_control.Ibus
-                
-            except:
-                rospy.logerr("Fast timer exception reading:" + traceback.format_exc())
-                self.fast_timer_comms_active = False
-                
+        try:
+            # read all required values from ODrive for odometry
+            self.vel_l = self.driver.left_axis.encoder.vel_estimate  # units: encoder counts/s
+            self.vel_r = -self.driver.right_axis.encoder.vel_estimate # neg is forward for right
+            self.new_pos_l = self.driver.left_axis.encoder.pos_cpr    # units: encoder counts
+            self.new_pos_r = -self.driver.right_axis.encoder.pos_cpr  # sign!
+            
+            # for current
+            self.current_l = self.driver.left_axis.motor.current_control.Ibus
+            self.current_r = self.driver.right_axis.motor.current_control.Ibus
+            
+        except:
+            rospy.logerr("Fast timer exception reading:" + traceback.format_exc())
+            self.fast_timer_comms_active = False
+
+        
+    def fast_timer(self, timer_event):
+        time_now = rospy.Time.now()
+        self.fast_loop_count += 1
+        # rospy.logerr("fast loop freq" + str((self.fast_loop_count)/(rospy.get_time() - self.start_time)))
+	# rospy.logerr(time_now)
+        # in case of failure, assume some values are zero
+        self.pub_state()
+
         if self.publish_current:
             self.pub_current()
 
         if self.publish_raw_kinematics:
             self.pub_raw_kinematics()
             
-        # TODO: change to be position, current or vel control instead
-        # check and stop motor if no vel command has been received in > 1s
-
-        """
-        try:
-            if self.fast_timer_comms_active and \
-                    (time_now - self.last_cmd_time).to_sec() > 1.0 and \
-                    self.driver.engaged():
-                #rospy.logdebug("No /cmd_vel received in > 1s, stopping.")
-            
-                self.last_cmd_time = time_now
-                # self.driver.release() # and release
-        except:
-            rospy.logerr("Fast timer exception on cmd timeout:" + traceback.format_exc())
-            self.fast_timer_comms_active = False
-        
-        """
 
         # handle sending drive commands.
+
         # from here, any errors return to get out
-        if self.fast_timer_comms_active and not self.command_queue.empty():
+        self.handle_queue_command()
+    def handle_queue_command(self):
+        if self.command_queue.empty():
             # check to see if we're initialised and engaged motor
           #  if not self.driver.prerolled():
           #      self.driver.preroll()
@@ -210,7 +198,6 @@ class ODriveNode(object):
                 return
             
             try:
-                #jV  if motor_command[0] == 'drive':
                 control_type = motor_command[1]
                 motor_num = motor_command[2]
                 value = motor_command[3]
