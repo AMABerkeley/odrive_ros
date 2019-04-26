@@ -43,8 +43,11 @@ class ODriveNode(object):
 
     
     def __init__(self):
-	self.queue_drops = 0
-	self.start_time = rospy.get_time()
+        self.main_loop_count = 0
+        self.fast_loop_count = 0
+
+        self.queue_drops = 0
+        self.start_time = rospy.get_time()
         self.axis_for_right = float(rospy.get_param('~axis_for_right', 0)) # if right calibrates first, this should be 0, else 1
         
         self.connect_on_startup   = rospy.get_param('~connect_on_startup', True)
@@ -93,6 +96,8 @@ class ODriveNode(object):
         # Main control, handle startup and error handling
         # while a ROS timer will handle the high-rate (~50Hz) comms + odometry calcs
         main_rate = rospy.Rate(1) # hz
+        self.main_loop_count += 1
+        rospy.logerr("main loop freq" + str((self.main_loop_count)/(rospy.get_time() - self.start_time)))
         # Start timer to run high-rate comms
         self.fast_timer = rospy.Timer(rospy.Duration(1/float(self.odom_calc_hz)), self.fast_timer)
         
@@ -137,6 +142,8 @@ class ODriveNode(object):
         
     def fast_timer(self, timer_event):
         time_now = rospy.Time.now()
+        self.fast_loop_count += 1
+        rospy.logerr("fast loop freq" + str((self.fast_loop_count)/(rospy.get_time() - self.start_time)))
 	# rospy.logerr(time_now)
         # in case of failure, assume some values are zero
         self.vel_l = 0
@@ -203,26 +210,26 @@ class ODriveNode(object):
                 return
             
             try:
-              #jV  if motor_command[0] == 'drive':
-	        control_type = motor_command[1]
-	        motor_num = motor_command[2]
-	        value = motor_command[3]
-	        trajectory = motor_command[4]
-	        if not self.driver.engaged():
-	            self.driver.engage()
-	        left_val = value if motor_num == 0 else None
-	        right_val = value if motor_num == 1 else None
-	        if control_type == 0:
-	            self.driver.drive_pos(left_val, right_val, trajectory)
-	        elif control_type == 1:
-	            self.driver.drive_vel(left_val, right_val)
-	        elif control_type == 2:
-	            self.driver.drive_current(left_val, right_val)
-	        self.last_cmd_time = time_now
-#                elif motor_command[0] == 'release':
- ###                   pass
-    #            else:
-     #               pass
+                #jV  if motor_command[0] == 'drive':
+                control_type = motor_command[1]
+                motor_num = motor_command[2]
+                value = motor_command[3]
+                trajectory = motor_command[4]
+                if not self.driver.engaged():
+                    self.driver.engage()
+                left_val = value if motor_num == 0 else None
+                right_val = value if motor_num == 1 else None
+                if control_type == 0:
+                    self.driver.drive_pos(left_val, right_val, trajectory)
+                elif control_type == 1:
+                    self.driver.drive_vel(left_val, right_val)
+                elif control_type == 2:
+                    self.driver.drive_current(left_val, right_val)
+                self.last_cmd_time = time_now
+    #                elif motor_command[0] == 'release':
+    ###                   pass
+        #            else:
+        #               pass
     
             except:
                 rospy.logerr("Fast timer exception on %s cmd: %s" % (str(motor_command), traceback.format_exc()))
@@ -247,7 +254,7 @@ class ODriveNode(object):
             return (False, "Failed to connect.")
             
         rospy.loginfo("ODrive connected.")
-	self.start_time = rospy.get_time()
+        self.start_time = rospy.get_time()
         
         # okay, connected, 
         self.fast_timer_comms_active = True
@@ -338,7 +345,7 @@ class ODriveNode(object):
             self.command_queue.put_nowait(drive_command)
         except Queue.Full:
             self.queue_drops += 1
-	    rospy.logerr("dropped queue rate drops/sec: " + str((self.queue_drops)/(rospy.get_time() - self.start_time)))
+            rospy.logerr("dropped queue rate drops/sec: " + str((self.queue_drops)/(rospy.get_time() - self.start_time)))
             pass
         self.last_cmd_time = rospy.Time.now()
     
