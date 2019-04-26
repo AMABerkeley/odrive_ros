@@ -28,8 +28,6 @@ class ROSLogger(object):
     def critical(self, msg): rospy.logfatal(msg)  #  print(msg) #
     
 class ODriveNode(object):
-    driver = None
-    prerolling = False
     
     # Robot wheel_track params for velocity -> motor speed conversion
     encoder_counts_per_rev = None
@@ -43,8 +41,11 @@ class ODriveNode(object):
 
     
     def __init__(self):
+        self.driver = None
+        self.prerolling = False
         self.main_loop_count = 0
         self.fast_loop_count = 0
+        self.prev_command_time = 0
 
         self.queue_drops = 0
         self.start_time = rospy.get_time()
@@ -53,6 +54,7 @@ class ODriveNode(object):
         self.connect_on_startup   = rospy.get_param('~connect_on_startup', True)
         self.calibrate_on_startup = rospy.get_param('~calibrate_on_startup', False)
         self.engage_on_startup    = rospy.get_param('~engage_on_startup', True)
+        self.od_id                = rospy.get_param('~od_id', None)
         
         self.has_preroll          = rospy.get_param('~use_preroll', False)
                 
@@ -81,7 +83,7 @@ class ODriveNode(object):
             self.current_publisher_right = rospy.Publisher('odrive/right_current', Float64, queue_size=2)
             rospy.loginfo("ODrive will publish motor currents.")
         
-        self.last_cmd_time = rospy.Time.now()
+        self.last_cmd_time = rospy.get_time()
         
         if self.publish_raw_kinematics:
             self.raw_kinematics_publisher_encoder_left  = rospy.Publisher('odrive/raw_kinematics/encoder_left',   Int32, queue_size=2)
@@ -95,38 +97,35 @@ class ODriveNode(object):
     def main_loop(self):
         # Main control, handle startup and error handling
         # while a ROS timer will handle the high-rate (~50Hz) comms + odometry calcs
-        main_rate = rospy.Rate(1) # hz
-        self.main_loop_count += 1
-        rospy.logerr("main loop freq" + str((self.main_loop_count)/(rospy.get_time() - self.start_time)))
+        main_rate = rospy.Rate(150) # hz
         # Start timer to run high-rate comms
-        self.fast_timer = rospy.Timer(rospy.Duration(1/float(self.odom_calc_hz)), self.fast_timer)
+        # self.fast_timer = rospy.Timer(rospy.Duration(1/float(self.odom_calc_hz)), self.fast_timer)
         
         self.fast_timer_comms_active = False
         
         while not rospy.is_shutdown():
+            self.main_loop_count += 1
+            if not self.main_loop_count%100:
+                rospy.loginfo("main loop freq loop#%i | %s hz" % (self.main_loop_count, str((self.main_loop_count)/(rospy.get_time() - self.start_time))))
             try:
                 main_rate.sleep()
             except rospy.ROSInterruptException: # shutdown / stop ODrive??
                 break
             
-            # fast timer running, so do nothing and wait for any errors
-            if self.fast_timer_comms_active:
-                continue
-            
             # check for errors
-            if self.driver:
-                try:
+            # if self.driver:
+                #try:
                     # driver connected, but fast_comms not active -> must be an error?
-                    if self.driver.get_errors(clear=True):
-                        rospy.logerr("Had errors, disconnecting and retrying connection.")
-                        self.driver.disconnect()
-                        self.driver = None
-                    else:
-                        # must have called connect service from another node
-                        self.fast_timer_comms_active = True
-                except:
-                    rospy.logerr("Errors accessing ODrive:" + traceback.format_exc())
-                    self.driver = None
+                    # if self.driver.get_errors(clear=True):
+                    #     rospy.logerr("Had errors, disconnecting and retrying connection.")
+                    #     self.driver.disconnect()
+                    #     self.driver = None
+                    # else:
+                    #     # must have called connect service from another node
+                    #     self.fast_timer_comms_active = True
+                # except:
+                #     rospy.logerr("Errors accessing ODrive:" + traceback.format_exc())
+                #     self.driver = None
             
             if not self.driver:
                 if not self.connect_on_startup:
@@ -138,7 +137,13 @@ class ODriveNode(object):
                     continue
             
             else:
-                pass # loop around and try again
+                self.handle_queue_command()
+                self.pub_state()
+                if self.publish_current:
+                    self.pub_current()
+                if self.publish_raw_kinematics:
+                    self.pub_raw_kinematics()
+
     def pub_state(self):
         self.vel_l = 0
         self.vel_r = 0
@@ -170,7 +175,7 @@ class ODriveNode(object):
         # rospy.logerr("fast loop freq" + str((self.fast_loop_count)/(rospy.get_time() - self.start_time)))
 	# rospy.logerr(time_now)
         # in case of failure, assume some values are zero
-        self.pub_state()
+        # self.pub_state()
 
         if self.publish_current:
             self.pub_current()
@@ -184,47 +189,51 @@ class ODriveNode(object):
         # from here, any errors return to get out
         self.handle_queue_command()
     def handle_queue_command(self):
-        if self.command_queue.empty():
+        # if self.command_queue.empty():
             # check to see if we're initialised and engaged motor
           #  if not self.driver.prerolled():
           #      self.driver.preroll()
           #      return
-            self.fast_timer_comms_active = False                
+            # self.fast_timer_comms_active = False                
             
-            try:
-                motor_command = self.command_queue.get_nowait()
-            except Queue.Empty:
-                rospy.logerr("Queue was empty??" + traceback.format_exc())
-                return
+        try:
+            motor_command = self.command_queue.get_nowait()
+        except Queue.Empty:
+            # rospy.logerr("Queue was empty??")
+            return
             
-            try:
-                control_type = motor_command[1]
-                motor_num = motor_command[2]
-                value = motor_command[3]
-                trajectory = motor_command[4]
-                if not self.driver.engaged():
-                    self.driver.engage()
-                left_val = value if motor_num == 0 else None
-                right_val = value if motor_num == 1 else None
-                if control_type == 0:
-                    self.driver.drive_pos(left_val, right_val, trajectory)
-                elif control_type == 1:
-                    self.driver.drive_vel(left_val, right_val)
-                elif control_type == 2:
-                    self.driver.drive_current(left_val, right_val)
-                self.last_cmd_time = time_now
-    #                elif motor_command[0] == 'release':
-    ###                   pass
-        #            else:
-        #               pass
-    
-            except:
-                rospy.logerr("Fast timer exception on %s cmd: %s" % (str(motor_command), traceback.format_exc()))
-                self.fast_timer_comms_active = False
+        try:
+            control_type = motor_command[1]
+            motor_num = motor_command[2]
+            value = motor_command[3]
+            trajectory = motor_command[4]
+            if not self.driver.engaged():
+                self.driver.engage()
+            left_val = value if motor_num == 0 else None
+            right_val = value if motor_num == 1 else None
+            if control_type == 0:
+                self.driver.drive_pos(left_val, right_val, trajectory)
+            elif control_type == 1:
+                self.driver.drive_vel(left_val, right_val)
+            elif control_type == 2:
+                self.driver.drive_current(left_val, right_val)
+
+            new_time = rospy.get_time()
+            rospy.loginfo("Received motor command from queue: %s | command exec frequency %f | queue size %s" %(str(motor_command), (1/(new_time - self.last_cmd_time)), self.command_queue.qsize()))
+            self.last_cmd_time = new_time
+
+#                elif motor_command[0] == 'release':
+###                   pass
+    #            else:
+    #               pass
+
+        except:
+            rospy.logerr("Fast timer exception on %s cmd: %s" % (str(motor_command), traceback.format_exc()))
+            self.fast_timer_comms_active = False
 
         
     def terminate(self):
-        self.fast_timer.shutdown()
+        # self.fast_timer.shutdown()
         if self.driver:
             self.driver.release()
     
@@ -235,12 +244,12 @@ class ODriveNode(object):
         
         self.driver = ODriveInterfaceAPI(logger=ROSLogger())
         rospy.loginfo("Connecting to ODrive...")
-        if not self.driver.connect(right_axis=self.axis_for_right):
+        if not self.driver.connect(right_axis=self.axis_for_right, odrive_id=self.od_id):
             self.driver = None
             #rospy.logerr("Failed to connect.")
             return (False, "Failed to connect.")
             
-        rospy.loginfo("ODrive connected.")
+        rospy.loginfo("ODrive %s connected." % self.driver.id)
         self.start_time = rospy.get_time()
         
         # okay, connected, 
@@ -332,9 +341,11 @@ class ODriveNode(object):
             self.command_queue.put_nowait(drive_command)
         except Queue.Full:
             self.queue_drops += 1
+            motor_command = self.command_queue.get_nowait()
+            rospy.logerr(motor_command)
             rospy.logerr("dropped queue rate drops/sec: " + str((self.queue_drops)/(rospy.get_time() - self.start_time)))
             pass
-        self.last_cmd_time = rospy.Time.now()
+        self.last_cmd_time = rospy.get_time()
     
 def start_odrive():
     rospy.init_node('odrive')

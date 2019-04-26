@@ -25,15 +25,17 @@ class ODriveFailure(Exception):
     pass
 
 class ODriveInterfaceAPI(object):
-    driver = None
     encoder_cpr = 8192
-    right_axis = None
-    left_axis = None
-    connected = False
-    _prerolled = False
     #engaged = False
     
     def __init__(self, logger=None):
+        self.id = None
+        # self. engaged = False
+        self.right_axis = None
+        self.left_axis = None
+        self.connected = False
+        self._prerolled = False
+        self.driver = None
         self.logger = logger if logger else default_logger
                 
     def __del__(self):
@@ -52,6 +54,7 @@ class ODriveInterfaceAPI(object):
             timeout
             odrive_id - string id unique to each odroid
         """
+        self.id = odrive_id
         if self.driver:
             self.logger.info("Already connected. Disconnecting and reconnecting.")
         try:
@@ -80,7 +83,6 @@ class ODriveInterfaceAPI(object):
         self.left_axis = None
         
         self._prerolled = False
-        #self.engaged = False
         
         if not self.driver:
             self.logger.error("Not connected.")
@@ -171,7 +173,6 @@ class ODriveInterfaceAPI(object):
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             axis.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
         
-        #self.engaged = True
         return True
         
         
@@ -183,7 +184,6 @@ class ODriveInterfaceAPI(object):
         for axis in self.axes: 
             axis.requested_state = AXIS_STATE_IDLE
 
-        #self.engaged = False
         return True
     
     def drive_vel(self, left=None, right=None):
@@ -213,7 +213,6 @@ class ODriveInterfaceAPI(object):
             return
         try:
             mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
-            print(mode)
             if left is not None:
                 self.left_axis.controller.config.control_mode = mode
                 if trajectory:

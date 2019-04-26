@@ -3,8 +3,8 @@
     <arg name="connect_on_startup"   default="true"/>
     <arg name="calibrate_on_startup" default="true"/>
     <arg name="engage_on_startup"    default="true"/>
-    <arg name="od_FL_leg_id"         default="207C37823548"/>
-    <arg name="od_FR_leg_id"         default=""/>
+    <arg name="od_FL_leg_id"         default="206A3398304B"/>
+    <arg name="od_FR_leg_id"         default="2069339B304B"/>
     <arg name="od_BL_leg_id"         default=""/>
     <arg name="od_BR_leg_id"         default=""/>
     <arg name="od_F_hip_id"          default=""/>
@@ -21,6 +21,18 @@
             output="$(arg output)" respawn="$(arg respawn)">
         
         <param name="od_id"      value="$(arg od_FL_leg_id)"/>
+        <param name="connect_on_startup"   value="$(arg connect_on_startup)"/>
+        <param name="calibrate_on_startup" value="$(arg calibrate_on_startup)"/>
+        <param name="engage_on_startup"    value="$(arg engage_on_startup)"/>
+        
+        <param name="publish_current"      value="$(arg publish_current)"/>
+        <param name="publish_raw_kinematics"      value="$(arg publish_raw_kinematics)"/>
+    </node>
+
+    <node pkg="odrive_ros" type="odrive_node.py" name="od_FR_leg" ns="odrive" 
+            output="$(arg output)" respawn="$(arg respawn)">
+        
+        <param name="od_id"      value="$(arg od_FR_leg_id)"/>
         <param name="connect_on_startup"   value="$(arg connect_on_startup)"/>
         <param name="calibrate_on_startup" value="$(arg calibrate_on_startup)"/>
         <param name="engage_on_startup"    value="$(arg engage_on_startup)"/>
