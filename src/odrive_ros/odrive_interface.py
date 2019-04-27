@@ -34,7 +34,7 @@ class ODriveInterfaceAPI(object):
         self.right_axis = None
         self.left_axis = None
         self.connected = False
-        self._prerolled = False
+        self._index_searched = False
         self.driver = None
         self.logger = logger if logger else default_logger
                 
@@ -82,7 +82,7 @@ class ODriveInterfaceAPI(object):
         self.right_axis = None
         self.left_axis = None
         
-        self._prerolled = False
+        self._index_searched = False
         
         if not self.driver:
             self.logger.error("Not connected.")
@@ -116,7 +116,7 @@ class ODriveInterfaceAPI(object):
                 
         return True
         
-    def preroll(self, wait=True):
+    def index_search(self, wait=True):
         """
         Finding index, requires full rotation on motor
         """
@@ -124,13 +124,13 @@ class ODriveInterfaceAPI(object):
             self.logger.error("Not connected.")
             return False
             
-        if self._prerolled: # must be prerolling or already prerolled
+        if self._index_searched: # must be index_searching or already index_searched
             return False
             
         #self.logger.info("Vbus %.2fV" % self.driver.vbus_voltage)
 
         for i, axis in enumerate(self.axes):
-            self.logger.info("Index search preroll axis %d..." % i)
+            self.logger.info("Index search index_search axis %d..." % i)
             axis.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
         
         if wait:
@@ -139,16 +139,16 @@ class ODriveInterfaceAPI(object):
                     time.sleep(0.1)
             for i, axis in enumerate(self.axes):
                 if axis.error != 0:
-                    self.logger.error("Failed preroll with axis error 0x%x, motor error 0x%x" % (axis.error, axis.motor.error))
+                    self.logger.error("Failed index_search with axis error 0x%x, motor error 0x%x" % (axis.error, axis.motor.error))
                     return False
-        self._prerolled = True
+        self._index_searched = True
         return True
         
-    def prerolling(self):
+    def index_searching(self):
         return self.axes[0].current_state == AXIS_STATE_ENCODER_INDEX_SEARCH or self.axes[1].current_state == AXIS_STATE_ENCODER_INDEX_SEARCH
     
-    def prerolled(self): #
-        return self._prerolled and not self.prerolling()
+    def index_searched(self): #
+        return self._index_searched and not self.index_searching()
     
     def engaged(self):
         return self.axes[0].current_state == AXIS_STATE_CLOSED_LOOP_CONTROL or self.axes[1].current_state == AXIS_STATE_CLOSED_LOOP_CONTROL
