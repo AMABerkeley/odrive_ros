@@ -29,7 +29,8 @@ class odrive_object:
 
     def command_callback(self, msg):
         cmd = msg.data
-        if len(cmd) == 2: self.drive_pos(cmd[0], cmd[1])
+        if len(cmd) == 2:
+            self.drive_pos(cmd[0], cmd[1])
         else:
             self.drive_current(0, 0)
 
@@ -47,13 +48,16 @@ class odrive_object:
         return True
 
     def drive_pos(self, left, right, trajectory=None):
+        # units of left and right are in radians
         try:
             mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
 
+
+            # convert from radians to counts
             self.driver.axis0.controller.config.control_mode = mode
-            self.driver.axis0.controller.pos_setpoint = left
+            self.driver.axis0.controller.pos_setpoint = left * float(self.cpr) / (2 * np.pi)
             self.driver.axis1.controller.config.control_mode = mode
-            self.driver.axis1.controller.pos_setpoint = right
+            self.driver.axis1.controller.pos_setpoint = right * float(self.cpr) / (2 * np.pi)
 
             print("ok")
         except Exception as e:
@@ -64,6 +68,7 @@ class odrive_object:
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         msg = Float64MultiArray()
         msg.data = [pos0, pos1]
+        # units of published left and right are in radians
         self.state_pub.publish(msg)
 
 
@@ -82,9 +87,9 @@ class odrive_object:
     def drive_current(self, left, right):
         try:
             self.driver.axis0.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            self.driver.axis0.controller.current_setpoint += left
+            self.driver.axis0.controller.current_setpoint = left
             self.driver.axis1.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            self.driver.axis1.controller.current_setpoint += right
+            self.driver.axis1.controller.current_setpoint = right
         except Exception as e:
            raise e
 
@@ -97,7 +102,7 @@ if __name__ == '__main__':
     od = odrive_object(port)
     # serial = "2069339B304B"
     # od = odrive_object(serial)
-    r = rospy.Rate(200)
+    r = rospy.Rate(100)
     while not rospy.is_shutdown():
         od.publish_position()
         r.sleep()
