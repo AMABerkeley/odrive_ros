@@ -58,8 +58,10 @@ class ODriveInterfaceAPI(object):
         if self.driver:
             self.logger.info("Already connected. Disconnecting and reconnecting.")
         try:
+
             self.driver = odrive.find_any(serial_number=odrive_id, timeout=timeout, logger=self.logger)
             self.axes = (self.driver.axis0, self.driver.axis1)
+
         except:
             self.logger.error("No ODrive found. Is device powered?")
             return False
@@ -264,4 +266,16 @@ class ODriveInterfaceAPI(object):
         # TODO: add error parsing, see: https://github.com/madcowswe/ODrive/blob/master/tools/odrive/utils.py#L34
         if not self.driver:
             return None
-        return dump_errors(self.driver, clear=clear)
+
+        axis_error = self.axes[0].error or self.axes[1].error
+        
+        if clear:
+            for axis in self.axes:
+                axis.error = 0
+                axis.motor.error = 0
+                axis.encoder.error = 0
+                axis.controller.error = 0
+        
+        if axis_error:
+            return "error"
+        
