@@ -1,0 +1,5 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <arg name="odrive_id" default=""/>
+    <node pkg="odrive_ros" type="driver.py" name="odrive_node" ns="$(arg odrive_id)" args="$(arg odrive_id)"/>
+</launch>
