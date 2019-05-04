@@ -8,6 +8,7 @@ import traceback
 
 import odrive
 from odrive.enums import *
+from odrive.utils import dump_errors
 
 import fibre
 
@@ -24,26 +25,43 @@ class ODriveFailure(Exception):
     pass
 
 class ODriveInterfaceAPI(object):
-    driver = None
-    encoder_cpr = 4096
-    right_axis = None
-    left_axis = None
-    connected = False
-    _prerolled = False
+    encoder_cpr = 8192
     #engaged = False
     
     def __init__(self, logger=None):
+        self.id = None
+        # self. engaged = False
+        self.right_axis = None
+        self.left_axis = None
+        self.connected = False
+        self._index_searched = False
+        self.driver = None
         self.logger = logger if logger else default_logger
                 
     def __del__(self):
         self.disconnect()
                     
-    def connect(self, port=None, right_axis=0, timeout=30):
+    def connect(self, port=None, right_axis=0, timeout=30, odrive_id=None):
+        """
+        Connect by serial numbers
+
+        serial numbers:
+            207C37823548
+
+        params:
+            port
+            right_axis
+            timeout
+            odrive_id - string id unique to each odroid
+        """
+        self.id = odrive_id
         if self.driver:
             self.logger.info("Already connected. Disconnecting and reconnecting.")
         try:
-            self.driver = odrive.find_any(timeout=timeout, logger=self.logger)
-            self.axes = (self.driver.axis0, ) # self.driver.axis1)
+
+            self.driver = odrive.find_any(serial_number=odrive_id, timeout=timeout, logger=self.logger)
+            self.axes = (self.driver.axis0, self.driver.axis1)
+
         except:
             self.logger.error("No ODrive found. Is device powered?")
             return False
@@ -66,15 +84,14 @@ class ODriveInterfaceAPI(object):
         self.right_axis = None
         self.left_axis = None
         
-        self._prerolled = False
-        #self.engaged = False
+        self._index_searched = False
         
         if not self.driver:
             self.logger.error("Not connected.")
             return False
         
         try:
-            self.driver.release()
+            self.release()
         except:
             self.logger.error("Error in timer: " + traceback.format_exc())
             return False
@@ -101,18 +118,21 @@ class ODriveInterfaceAPI(object):
                 
         return True
         
-    def preroll(self, wait=True):
+    def index_search(self, wait=True):
+        """
+        Finding index, requires full rotation on motor
+        """
         if not self.driver:
             self.logger.error("Not connected.")
             return False
             
-        if self._prerolled: # must be prerolling or already prerolled
+        if self._index_searched: # must be index_searching or already index_searched
             return False
             
         #self.logger.info("Vbus %.2fV" % self.driver.vbus_voltage)
 
         for i, axis in enumerate(self.axes):
-            self.logger.info("Index search preroll axis %d..." % i)
+            self.logger.info("Index search index_search axis %d..." % i)
             axis.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
         
         if wait:
@@ -121,16 +141,16 @@ class ODriveInterfaceAPI(object):
                     time.sleep(0.1)
             for i, axis in enumerate(self.axes):
                 if axis.error != 0:
-                    self.logger.error("Failed preroll with axis error 0x%x, motor error 0x%x" % (axis.error, axis.motor.error))
+                    self.logger.error("Failed index_search with axis error 0x%x, motor error 0x%x" % (axis.error, axis.motor.error))
                     return False
-        self._prerolled = True
+        self._index_searched = True
         return True
         
-    def prerolling(self):
+    def index_searching(self):
         return self.axes[0].current_state == AXIS_STATE_ENCODER_INDEX_SEARCH or self.axes[1].current_state == AXIS_STATE_ENCODER_INDEX_SEARCH
     
-    def prerolled(self): #
-        return self._prerolled and not self.prerolling()
+    def index_searched(self): #
+        return self._index_searched and not self.index_searching()
     
     def engaged(self):
         return self.axes[0].current_state == AXIS_STATE_CLOSED_LOOP_CONTROL or self.axes[1].current_state == AXIS_STATE_CLOSED_LOOP_CONTROL
@@ -139,18 +159,24 @@ class ODriveInterfaceAPI(object):
         return self.axes[0].current_state == AXIS_STATE_IDLE and self.axes[1].current_state == AXIS_STATE_IDLE
         
     def engage(self):
+        """
+        Enter into 
+        """
         if not self.driver:
             self.logger.error("Not connected.")
             return False
 
+
         #self.logger.debug("Setting drive mode.")
         for axis in self.axes:
             axis.controller.vel_setpoint = 0
+            axis.controller.pos_setpoint = 0
+            axis.controller.current_setpoint = 0
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-            axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+            axis.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
         
-        #self.engaged = True
         return True
+        
         
     def release(self):
         if not self.driver:
@@ -160,24 +186,87 @@ class ODriveInterfaceAPI(object):
         for axis in self.axes: 
             axis.requested_state = AXIS_STATE_IDLE
 
-        #self.engaged = False
         return True
     
-    def drive(self, left_motor_val, right_motor_val):
+    def drive_vel(self, left=None, right=None):
         if not self.driver:
             self.logger.error("Not connected.")
             return
-        #try:
-        self.left_axis.controller.vel_setpoint = left_motor_val
-        self.right_axis.controller.vel_setpoint = -right_motor_val
-        #except (fibre.protocol.ChannelBrokenException, AttributeError) as e:
-        #    raise ODriveFailure(str(e))
+        elif not self.engaged():
+            self.logger.error("Not engaged")
+            return
+        try:
+            if left is not None:
+                self.left_axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+                self.left_axis.controller.vel_setpoint = left
+            if right is not None:
+                self.right_axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+                self.right_axis.controller.vel_setpoint = right
+        except (fibre.protocol.ChannelBrokenException, AttributeError) as e:
+           raise ODriveFailure(str(e))
         
+    
+    def drive_pos(self, left=None, right=None, trajectory=None):
+        if not self.driver:
+            self.logger.error("Not connected.")
+            return
+        elif not self.engaged():
+            self.logger.error("Not engaged")
+            return
+        try:
+            mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
+            if left is not None:
+                self.left_axis.controller.config.control_mode = mode
+                if trajectory:
+                    self.set_trajectory(self.left_axis.trap_traj.config, trajectory)
+              #      self.left_axis.controller.move_incremental(left, False)
+              #  else:
+                self.left_axis.controller.pos_setpoint += left
+
+            
+            if right is not None:
+                self.right_axis.controller.config.control_mode = mode
+                if trajectory:
+                    self.set_trajectory(self.right_axis.trap_traj.config, trajectory)
+                    self.right_axis.controller.move_incremental(right, False)
+                else:
+                    self.right_axis.controller.pos_setpoint += right
+        except (fibre.protocol.ChannelBrokenException, AttributeError) as e:
+           raise ODriveFailure(str(e))
+
+    def set_trajectory(self, traj_config, traj_values):
+        """
+        Trajectory control value have units related to counts
+        """
+
+        assert len(traj_values) == 4, "Trajectory values not 4 elements long"
+        traj_config.vel_limit = traj_values[0]
+        traj_config.accel_limit = traj_values[1]
+        traj_config.decel_limit = traj_values[2]
+        traj_config.A_per_css = traj_values[3]
+
+    def drive_current(self, left=None, right=None):
+        if not self.driver:
+            self.logger.error("Not connected.")
+            return
+        elif not self.engaged():
+            self.logger.error("Not engaged")
+            return
+        try:
+            if left is not None:
+                self.left_axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
+                self.left_axis.controller.current_setpoint += left
+            if right is not None:
+                self.right_axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
+                self.right_axis.controller.current_setpoint += right
+        except (fibre.protocol.ChannelBrokenException, AttributeError) as e:
+           raise ODriveFailure(str(e))
+
     def get_errors(self, clear=True):
         # TODO: add error parsing, see: https://github.com/madcowswe/ODrive/blob/master/tools/odrive/utils.py#L34
         if not self.driver:
             return None
-            
+
         axis_error = self.axes[0].error or self.axes[1].error
         
         if clear:
@@ -189,6 +278,4 @@ class ODriveInterfaceAPI(object):
         
         if axis_error:
             return "error"
-        
-        
         
