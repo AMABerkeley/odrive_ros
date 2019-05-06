@@ -25,12 +25,12 @@ class odrive_object:
         self.engage()
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
-        self.drive_current(0, 0)
+        self.pos_setpoint = None
 
     def command_callback(self, msg):
         cmd = msg.data
         if len(cmd) == 2:
-            self.drive_pos(cmd[0], cmd[1])
+            self.pos_setpoint = cmd
         else:
             self.drive_current(0, 0)
 
@@ -50,18 +50,23 @@ class odrive_object:
     def drive_pos(self, left, right, trajectory=None):
         # units of left and right are in radians
         try:
-            mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
-
-
+            #mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
+            mode = CTRL_MODE_TRAJECTORY_CONTROL
             # convert from radians to counts
             self.driver.axis0.controller.config.control_mode = mode
-            self.driver.axis0.controller.pos_setpoint = left * float(self.cpr) / (2 * np.pi)
             self.driver.axis1.controller.config.control_mode = mode
-            self.driver.axis1.controller.pos_setpoint = right * float(self.cpr) / (2 * np.pi)
-
+            self.driver.axis0.move_to_pos(left * float(self.cpr) / (2 * np.pi))
+            self.driver.axis1.move_to_pos(right * float(self.cpr) / (2 * np.pi))
+            
             print("ok")
         except Exception as e:
            raise e
+
+    def process_pos_setpoint(self):
+        if self.pos_setpoint:
+            self.drive_pos(self.pos_setpoint[0], self.pos_setpoint[1])
+            self.pos_setpoint = None
+
 
     def publish_position(self):
         pos0 = self.driver.axis0.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
@@ -105,4 +110,5 @@ if __name__ == '__main__':
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
         od.publish_position()
+        od.process_pos_setpoint()
         r.sleep()
