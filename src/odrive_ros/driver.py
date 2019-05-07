@@ -61,13 +61,10 @@ class odrive_object:
 
             self.driver.axis0.controller.config.control_mode = mode
             self.driver.axis1.controller.config.control_mode = mode
-            self.driver.axis0.controller.move_to_pos(left_des )
-            self.driver.axis1.controller.move_to_pos(right_des)
-            self.driver.axis0.controller.config.control_mode = mode
-            self.driver.axis1.controller.config.control_mode = mode
 
-            # self.driver.axis0.controller.pos_setpoint = left * float(self.cpr) / (2 * np.pi)
-            # self.driver.axis1.controller.pos_setpoint = right * float(self.cpr) / (2 * np.pi)
+            self.driver.axis0.controller.move_to_pos(left_des)
+            self.driver.axis1.controller.move_to_pos(right_des)
+
 
         except Exception as e:
             rospy.logerr("exception")
@@ -85,7 +82,7 @@ class odrive_object:
         traj_config.A_per_css = traj_values[3]
 
     def process_pos_setpoint(self):
-        if not self.pos_setpoint == None:
+        if self.pos_setpoint is not None:
             o_utils.dump_errors(self.driver, clear=True)
             if port == "207C37863548":
                 rospy.logerr(self.driver.axis0.error)
@@ -101,22 +98,12 @@ class odrive_object:
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
-    # def set_trajectory(self, traj_config, traj_values):
-        # """
-        # Trajectory control value have units related to counts
-        # """
-
-        # assert len(traj_values) == 4, "Trajectory values not 4 elements long"
-        # traj_config.vel_limit = traj_values[0]
-        # traj_config.accel_limit = traj_values[1]
-        # traj_config.decel_limit = traj_values[2]
-        # traj_config.A_per_css = traj_values[3]
 
     def drive_current(self, left, right):
         try:
             self.driver.axis0.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            self.driver.axis0.controller.current_setpoint = left
             self.driver.axis1.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
+            self.driver.axis0.controller.current_setpoint = left
             self.driver.axis1.controller.current_setpoint = right
         except Exception as e:
            raise e
