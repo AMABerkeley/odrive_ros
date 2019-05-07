@@ -83,12 +83,16 @@ class odrive_object:
 
     def process_pos_setpoint(self):
         if self.pos_setpoint is not None:
-            o_utils.dump_errors(self.driver, clear=True)
-            if port == "207C37863548":
-                rospy.logerr(self.driver.axis0.error)
             self.drive_pos(self.pos_setpoint[0], self.pos_setpoint[1])
             self.pos_setpoint = None
 
+
+    def clear_errors(self, event):
+        """ Non-critical code for clearing error states. To be run with ros.timer
+        """
+        if port == "207C37863548" and self.driver.axis0.error:
+            rospy.logerr(self.driver.axis0.error)
+        o_utils.dump_errors(self.driver, clear=True)
 
     def publish_position(self):
         pos0 = self.driver.axis0.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
@@ -118,6 +122,8 @@ if __name__ == '__main__':
     od.drive_current(0, 0)
     # serial = "2069339B304B"
     # od = odrive_object(serial)
+
+    rospy.Timer(rospy.Duration(2), od.clear_errors) # dumps errors every 2 seconds
     r = rospy.Rate(200)
     while not rospy.is_shutdown():
         od.publish_position()
