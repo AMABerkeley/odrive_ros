@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import odrive
+import odrive.utils as o_utils
 import sys
 from odrive.enums import *
 import time
@@ -21,6 +22,7 @@ class odrive_object:
             except:
                 pass
             rospy.logerr("trying to connect again to port: "+ str(port))
+        self.port = port
 
         self.engage()
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
@@ -40,30 +42,53 @@ class odrive_object:
         """
         #self.logger.debug("Setting drive mode.")
         for axis in (self.driver.axis0, self.driver.axis1):
-            axis.controller.vel_setpoint = 0
-            axis.controller.pos_setpoint = 0
-            axis.controller.current_setpoint = 0
+            axis.controller.vel_setpoint = 0.0
+            axis.controller.pos_setpoint = 0.0
+            axis.controller.current_setpoint = 0.0
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-            axis.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
+            axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
         return True
 
     def drive_pos(self, left, right, trajectory=None):
         # units of left and right are in radians
         try:
-            #mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
-            mode = CTRL_MODE_TRAJECTORY_CONTROL
+            mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
+            # mode = CTRL_MODE_TRAJECTORY_CONTROL
             # convert from radians to counts
+
+            left_des =  left  * float(self.cpr) / (2.0 * np.pi)
+            right_des = right * float(self.cpr) / (2.0 * np.pi)
+
             self.driver.axis0.controller.config.control_mode = mode
             self.driver.axis1.controller.config.control_mode = mode
-            self.driver.axis0.move_to_pos(left * float(self.cpr) / (2 * np.pi))
-            self.driver.axis1.move_to_pos(right * float(self.cpr) / (2 * np.pi))
-            
-            print("ok")
+            self.driver.axis0.controller.move_to_pos(left_des )
+            self.driver.axis1.controller.move_to_pos(right_des)
+            self.driver.axis0.controller.config.control_mode = mode
+            self.driver.axis1.controller.config.control_mode = mode
+
+            # self.driver.axis0.controller.pos_setpoint = left * float(self.cpr) / (2 * np.pi)
+            # self.driver.axis1.controller.pos_setpoint = right * float(self.cpr) / (2 * np.pi)
+
         except Exception as e:
-           raise e
+            rospy.logerr("exception")
+            raise e
+
+    def set_trajectory(self, traj_config, traj_values):
+        """
+        Trajectory control value have units related to counts
+        """
+
+        assert len(traj_values) == 4, "Trajectory values not 4 elements long"
+        traj_config.vel_limit = traj_values[0]
+        traj_config.accel_limit = traj_values[1]
+        traj_config.decel_limit = traj_values[2]
+        traj_config.A_per_css = traj_values[3]
 
     def process_pos_setpoint(self):
-        if self.pos_setpoint:
+        if not self.pos_setpoint == None:
+            o_utils.dump_errors(self.driver, clear=True)
+            if port == "207C37863548":
+                rospy.logerr(self.driver.axis0.error)
             self.drive_pos(self.pos_setpoint[0], self.pos_setpoint[1])
             self.pos_setpoint = None
 
@@ -76,13 +101,11 @@ class odrive_object:
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
-
-
     # def set_trajectory(self, traj_config, traj_values):
         # """
         # Trajectory control value have units related to counts
         # """
-#
+
         # assert len(traj_values) == 4, "Trajectory values not 4 elements long"
         # traj_config.vel_limit = traj_values[0]
         # traj_config.accel_limit = traj_values[1]
@@ -105,9 +128,10 @@ if __name__ == '__main__':
     rospy.logerr(sys.argv[1])
     port = sys.argv[1]
     od = odrive_object(port)
+    od.drive_current(0, 0)
     # serial = "2069339B304B"
     # od = odrive_object(serial)
-    r = rospy.Rate(100)
+    r = rospy.Rate(200)
     while not rospy.is_shutdown():
         od.publish_position()
         od.process_pos_setpoint()
