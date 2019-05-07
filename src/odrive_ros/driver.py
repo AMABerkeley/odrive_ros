@@ -28,17 +28,20 @@ class odrive_object:
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.pos_setpoint = None
+        self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
 
     def command_callback(self, msg):
         cmd = msg.data
         if len(cmd) == 2:
             self.pos_setpoint = cmd
         else:
+            rospy.logerr("Command callback with empty command message - defaulting to 0A current control")
             self.drive_current(0, 0)
 
     def engage(self):
         """
-        Enter into
+        Enter into closed loop current control, legs should go limp with some resistance
+        TODO: perhaps rename from engage if it makes legs go limp
         """
         #self.logger.debug("Setting drive mode.")
         for axis in (self.driver.axis0, self.driver.axis1):
@@ -49,37 +52,42 @@ class odrive_object:
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
         return True
 
-    def drive_pos(self, left, right, trajectory=None):
+
+    def drive_pos(self, left, right):
         # units of left and right are in radians
         try:
-            mode = CTRL_MODE_POSITION_CONTROL if trajectory is None else CTRL_MODE_TRAJECTORY_CONTROL
-            # mode = CTRL_MODE_TRAJECTORY_CONTROL
             # convert from radians to counts
-
             left_des =  left  * float(self.cpr) / (2.0 * np.pi)
             right_des = right * float(self.cpr) / (2.0 * np.pi)
 
-            self.driver.axis0.controller.config.control_mode = mode
-            self.driver.axis1.controller.config.control_mode = mode
+            self.driver.axis0.controller.config.control_mode = self.drive_mode
+            self.driver.axis1.controller.config.control_mode = self.drive_mode
 
             self.driver.axis0.controller.move_to_pos(left_des)
             self.driver.axis1.controller.move_to_pos(right_des)
 
 
         except Exception as e:
-            rospy.logerr("exception")
+            rospy.logerr("Exception in driver.drive_pos()")
             raise e
 
-    def set_trajectory(self, traj_config, traj_values):
+    def set_trajectory(self, traj_values):
         """
         Trajectory control value have units related to counts
+        Velocity and acceleration limits are in units of CPR ticks
+
+        default from double_herlea_[no_]brake_amp_traj.json
+            vel: ~8*8192 cpr/sec, accel&decel = 2*8192 cpr/sec2
+        {"vel_limit": 59000.0, "accel_limit": 16384.0, "decel_limit": 16384.0, "A_per_css": 0.0}
         """
 
         assert len(traj_values) == 4, "Trajectory values not 4 elements long"
-        traj_config.vel_limit = traj_values[0]
-        traj_config.accel_limit = traj_values[1]
-        traj_config.decel_limit = traj_values[2]
-        traj_config.A_per_css = traj_values[3]
+        for axis in (self.driver.axis0, self.driver.axis1):
+            axis.traj_config.vel_limit = traj_values[0]
+            axis.traj_config.accel_limit = traj_values[1]
+            axis.traj_config.decel_limit = traj_values[2]
+            axis.traj_config.A_per_css = traj_values[3]
+
 
     def process_pos_setpoint(self):
         if self.pos_setpoint is not None:
@@ -88,8 +96,7 @@ class odrive_object:
 
 
     def clear_errors(self, event):
-        """ Non-critical code for clearing error states. To be run with ros.timer
-        """
+        # Non-critical code for clearing error states. To be run with ros.timer
         if port == "207C37863548" and self.driver.axis0.error:
             rospy.logerr(self.driver.axis0.error)
         o_utils.dump_errors(self.driver, clear=True)
@@ -119,11 +126,13 @@ if __name__ == '__main__':
     rospy.logerr(sys.argv[1])
     port = sys.argv[1]
     od = odrive_object(port)
-    od.drive_current(0, 0)
+    od.engage()
+    # od.drive_current(0, 0)
     # serial = "2069339B304B"
     # od = odrive_object(serial)
 
     rospy.Timer(rospy.Duration(2), od.clear_errors) # dumps errors every 2 seconds
+
     r = rospy.Rate(200)
     while not rospy.is_shutdown():
         od.publish_position()
