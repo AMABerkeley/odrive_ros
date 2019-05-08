@@ -51,6 +51,10 @@ class odrive_object:
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
         return True
+    
+    def disengage(self):
+        for axis in (self.driver.axis0, self.driver.axis1):
+            axis.requested_state = AXIS_STATE_IDLE
 
 
     def drive_pos(self, left, right):
@@ -59,6 +63,9 @@ class odrive_object:
             # convert from radians to counts
             left_des =  left  * float(self.cpr) / (2.0 * np.pi)
             right_des = right * float(self.cpr) / (2.0 * np.pi)
+            #rospy.logerr("drive mode: %i" % (self.drive_mode))
+            #rospy.logerr("drive_pos(%i, %i)" % (left_des, right_des,))
+            #rospy.logerr("traj 0 %s | traj 1 %s"  % (str(self.driver.axis0.trap_traj), str(self.driver.axis1.trap_traj)))
 
             self.driver.axis0.controller.config.control_mode = self.drive_mode
             self.driver.axis1.controller.config.control_mode = self.drive_mode
@@ -83,10 +90,10 @@ class odrive_object:
 
         assert len(traj_values) == 4, "Trajectory values not 4 elements long"
         for axis in (self.driver.axis0, self.driver.axis1):
-            axis.traj_config.vel_limit = traj_values[0]
-            axis.traj_config.accel_limit = traj_values[1]
-            axis.traj_config.decel_limit = traj_values[2]
-            axis.traj_config.A_per_css = traj_values[3]
+            axis.trap_traj.config.vel_limit = traj_values[0]
+            axis.trap_traj.config.accel_limit = traj_values[1]
+            axis.trap_traj.config.decel_limit = traj_values[2]
+            axis.trap_traj.config.A_per_css = traj_values[3]
 
 
     def process_pos_setpoint(self):
@@ -126,6 +133,7 @@ if __name__ == '__main__':
     rospy.logerr(sys.argv[1])
     port = sys.argv[1]
     od = odrive_object(port)
+    od.set_trajectory([20000.0, 200000.0, 200000.0, 0.0])
     od.engage()
     # od.drive_current(0, 0)
     # serial = "2069339B304B"
@@ -138,3 +146,5 @@ if __name__ == '__main__':
         od.publish_position()
         od.process_pos_setpoint()
         r.sleep()
+
+    od.disengage()
