@@ -29,6 +29,7 @@ class odrive_object:
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.pos_setpoint = None
         self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
+        #self.drive_mode = CTRL_MODE_POSITION_CONTROL
 
     def command_callback(self, msg):
         cmd = msg.data
@@ -108,11 +109,13 @@ class odrive_object:
             rospy.logerr(self.driver.axis0.error)
         o_utils.dump_errors(self.driver, clear=True)
 
-    def publish_position(self):
+    def publish_state(self):
         pos0 = self.driver.axis0.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
+        cur0 = self.driver.axis0.motor.current_control.Ibus
+        cur1 = self.driver.axis1.motor.current_control.Ibus
         msg = Float64MultiArray()
-        msg.data = [pos0, pos1]
+        msg.data = [pos0, pos1, cur0, cur1]
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
@@ -133,7 +136,7 @@ if __name__ == '__main__':
     rospy.logerr(sys.argv[1])
     port = sys.argv[1]
     od = odrive_object(port)
-    od.set_trajectory([20000.0, 200000.0, 200000.0, 0.0])
+    od.set_trajectory([200000.0, 200000.0, 200000.0, 0.0])
     od.engage()
     # od.drive_current(0, 0)
     # serial = "2069339B304B"
@@ -143,7 +146,7 @@ if __name__ == '__main__':
 
     r = rospy.Rate(200)
     while not rospy.is_shutdown():
-        od.publish_position()
+        od.publish_state()
         od.process_pos_setpoint()
         r.sleep()
 
