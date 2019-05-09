@@ -120,8 +120,8 @@ class odrive_object:
     def publish_state(self):
         pos0 = self.driver.axis0.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
-        cur0 = self.driver.axis0.motor.current_control.Ibus
-        cur1 = self.driver.axis1.motor.current_control.Ibus
+        cur0 = self.driver.axis0.motor.current_control.Iq_measured
+        cur1 = self.driver.axis1.motor.current_control.Iq_measured
         msg = Float64MultiArray()
         msg.data = [pos0, pos1, cur0, cur1]
         # units of published left and right are in radians
