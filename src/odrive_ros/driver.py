@@ -28,8 +28,8 @@ class odrive_object:
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.pos_setpoint = None
-        self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
-        #self.drive_mode = CTRL_MODE_POSITION_CONTROL
+        #self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
+        self.drive_mode = CTRL_MODE_POSITION_CONTROL
 
     def command_callback(self, msg):
         cmd = msg.data
@@ -62,17 +62,23 @@ class odrive_object:
         # units of left and right are in radians
         try:
             # convert from radians to counts
-            left_des =  left  * float(self.cpr) / (2.0 * np.pi)
-            right_des = right * float(self.cpr) / (2.0 * np.pi)
+            left_des =  float(left)  * float(self.cpr) / float(2.0 * np.pi)
+            right_des = float(right) * float(self.cpr) / float(2.0 * np.pi)
             #rospy.logerr("drive mode: %i" % (self.drive_mode))
             #rospy.logerr("drive_pos(%i, %i)" % (left_des, right_des,))
             #rospy.logerr("traj 0 %s | traj 1 %s"  % (str(self.driver.axis0.trap_traj), str(self.driver.axis1.trap_traj)))
-
             self.driver.axis0.controller.config.control_mode = self.drive_mode
             self.driver.axis1.controller.config.control_mode = self.drive_mode
 
-            self.driver.axis0.controller.move_to_pos(left_des)
-            self.driver.axis1.controller.move_to_pos(right_des)
+            if self.drive_mode ==  CTRL_MODE_TRAJECTORY_CONTROL:
+                self.driver.axis0.controller.move_to_pos(left_des)
+                self.driver.axis1.controller.move_to_pos(right_des)
+            else:
+                self.driver.axis0.controller.pos_setpoint = (left_des)
+                self.driver.axis1.controller.pos_setpoint = (right_des)
+
+
+            rospy.logerr("drive_pos: "  + str([left, left_des, right, right_des]))
 
 
         except Exception as e:
@@ -95,6 +101,8 @@ class odrive_object:
             axis.trap_traj.config.accel_limit = traj_values[1]
             axis.trap_traj.config.decel_limit = traj_values[2]
             axis.trap_traj.config.A_per_css = traj_values[3]
+
+            axis.motor.config.current_lim = 4
 
 
     def process_pos_setpoint(self):
