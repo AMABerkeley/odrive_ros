@@ -102,7 +102,7 @@ class odrive_object:
             axis.trap_traj.config.decel_limit = traj_values[2]
             axis.trap_traj.config.A_per_css = traj_values[3]
 
-            axis.motor.config.current_lim = 4
+            axis.motor.config.current_lim = 6
 
 
     def process_pos_setpoint(self):
