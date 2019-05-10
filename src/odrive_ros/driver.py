@@ -52,7 +52,7 @@ class odrive_object:
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
         return True
-    
+
     def disengage(self):
         for axis in (self.driver.axis0, self.driver.axis1):
             axis.requested_state = AXIS_STATE_IDLE
@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
     rospy.Timer(rospy.Duration(2), od.clear_errors) # dumps errors every 2 seconds
 
-    r = rospy.Rate(200)
+    r = rospy.Rate(250)
     while not rospy.is_shutdown():
         od.publish_state()
         od.process_pos_setpoint()
