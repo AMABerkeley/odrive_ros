@@ -32,6 +32,7 @@ class odrive_object:
         self.cmd_setpoint = None
         # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
         self.drive_mode = CTRL_MODE_POSITION_CONTROL
+	self.current_limit = 6
 
     def command_callback(self, msg):
         # (m0 command, m0 ctr_mode, m1 command, m1 ctrl_mode)
@@ -78,7 +79,8 @@ class odrive_object:
             axis.trap_traj.config.decel_limit = traj_values[2]
             axis.trap_traj.config.A_per_css = traj_values[3]
 
-            axis.motor.config.current_lim = 6
+            axis.motor.config.current_lim = self.current_limit
+            axis.controller.config.vel_limit_tolerance = 0 # disables velocity limit, TODO: fix this
 
 
     def process_cmd_setpoint(self):
@@ -107,8 +109,9 @@ class odrive_object:
 
     def clear_errors(self, event):
         # Non-critical code for clearing error states. To be run with ros.timer
-        if port == "207C37863548" and self.driver.axis0.error:
-            rospy.logerr(self.driver.axis0.error)
+        if self.driver.axis0.error or self.driver.axis1.error:
+            rospy.logerr("Axis Error %s %s" % (self.driver.axis0.error, self.driver.axis1.error))
+            rospy.logerr("Controller Error %s %s" % (self.driver.axis0.controller.error, self.driver.axis1.controller.error))
         o_utils.dump_errors(self.driver, clear=True)
 
     def publish_state(self):
@@ -171,8 +174,9 @@ class odrive_object:
             raise e
 
     def torque_to_current(self, torque):
-
-        return torque * 100.0  / 8.27
+        target_current = torque * 100.0  / 8.27
+        return min(target_current, self.current_limit)
+        
 
     def drive_torque(self, left, right):
         try:
