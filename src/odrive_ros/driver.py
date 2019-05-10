@@ -10,6 +10,8 @@ from std_msgs.msg import Float64MultiArray
 from std_msgs.msg import Float64
 from std_msgs.msg import String
 
+GLOBAL_DRIVE_MODE = CTRL_MODE_POSITION_CONTROL
+
 class odrive_object:
     def __init__(self, port):
         self.cpr = 8192
@@ -28,7 +30,7 @@ class odrive_object:
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.cmd_setpoint = None
-        #self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
+        # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
         self.drive_mode = CTRL_MODE_POSITION_CONTROL
 
     def command_callback(self, msg):
@@ -90,13 +92,13 @@ class odrive_object:
             m1_mode = round(self.cmd_setpoint[3])
 
             if m0_mode == CTRL_MODE_CURRENT_CONTROL:
-                self.drive_current_single(m0_val, 0)
+                self.drive_torque_single(m0_val, 0)
             else:
                 self.drive_pos_single(m0_val, 0)
 
             # motor 1
             if m1_mode == CTRL_MODE_CURRENT_CONTROL:
-                self.drive_current_single(m1_val, 1)
+                self.drive_torque_single(m1_val, 1)
             else:
                 self.drive_pos_single(m1_val, 1)
 
@@ -119,7 +121,7 @@ class odrive_object:
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
-    def drive_pos_single(self, val_rad, motor_number, mode=self.drive_mode):
+    def drive_pos_single(self, val_rad, motor_number, mode=GLOBAL_DRIVE_MODE):
         # units of left and right are in radians
         axis = self.driver.axis0 if motor_number == 0 else self.driver.axis1
         try:
@@ -168,20 +170,26 @@ class odrive_object:
             rospy.logerr("Exception in driver.drive_pos()")
             raise e
 
-    def drive_current(self, left, right):
+    def torque_to_current(self, torque):
+
+        return torque * 100.0  / 8.27
+
+    def drive_torque(self, left, right):
         try:
+            l_current = self.torque_to_current(left)
+            r_current = self.torque_to_current(right)
             self.driver.axis0.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
             self.driver.axis1.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            self.driver.axis0.controller.current_setpoint = left
-            self.driver.axis1.controller.current_setpoint = right
+            self.driver.axis0.controller.current_setpoint = l_current
+            self.driver.axis1.controller.current_setpoint = r_current
         except Exception as e:
            raise e
 
-    def drive_current_single(self, val, motor_number):
+    def drive_torque_single(self, torque, motor_number):
         try:
             axis = self.driver.axis0 if motor_number == 0 else self.driver.axis1
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            axis.controller.current_setpoint = val
+            axis.controller.current_setpoint = self.force_to_current(torque)
         except Exception as e:
            raise e
 
