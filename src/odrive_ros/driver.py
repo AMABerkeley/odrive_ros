@@ -189,7 +189,7 @@ class odrive_object:
         try:
             axis = self.driver.axis0 if motor_number == 0 else self.driver.axis1
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
-            axis.controller.current_setpoint = self.force_to_current(torque)
+            axis.controller.current_setpoint = self.torque_to_current(torque)
         except Exception as e:
            raise e
 
