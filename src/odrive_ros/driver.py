@@ -119,8 +119,11 @@ class odrive_object:
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         cur0 = self.driver.axis0.motor.current_control.Iq_measured
         cur1 = self.driver.axis1.motor.current_control.Iq_measured
+        vel0 = self.driver.axis0.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+        vel1 = self.driver.axis1.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+
         msg = Float64MultiArray()
-        msg.data = [pos0, pos1, cur0, cur1]
+        msg.data = [pos0, pos1, cur0, cur1, vel0, vel1]
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
