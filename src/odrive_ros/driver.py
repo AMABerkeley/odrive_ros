@@ -32,7 +32,7 @@ class odrive_object:
         self.cmd_setpoint = None
         # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
         self.drive_mode = CTRL_MODE_POSITION_CONTROL
-	self.current_limit = 1.5
+	self.current_limit = 3.5
 
     def command_callback(self, msg):
         # (m0 command, m0 ctr_mode, m1 command, m1 ctrl_mode)
@@ -81,7 +81,7 @@ class odrive_object:
 
             axis.motor.config.current_lim = self.current_limit
 	    axis.motor.config.requested_current_range = 10.0
-            axis.controller.config.vel_limit_tolerance = 1.2 # disables velocity limit, TODO: fix this
+            axis.controller.config.vel_limit_tolerance = 10.2 # disables velocity limit, TODO: fix this
 
 
     def process_cmd_setpoint(self):
