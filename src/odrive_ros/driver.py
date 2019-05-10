@@ -32,7 +32,7 @@ class odrive_object:
         self.cmd_setpoint = None
         # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
         self.drive_mode = CTRL_MODE_POSITION_CONTROL
-	self.current_limit = 1
+	self.current_limit = 1.5
 
     def command_callback(self, msg):
         # (m0 command, m0 ctr_mode, m1 command, m1 ctrl_mode)
