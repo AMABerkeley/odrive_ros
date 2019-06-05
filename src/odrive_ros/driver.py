@@ -148,7 +148,7 @@ class odrive_object:
             else:
                 axis.controller.pos_setpoint = val_count
 
-            rospy.logerr("drive_pos_single on m%f : %s"  % (motor_number, str([val_rad, val_count])))
+            # rospy.logerr("drive_pos_single on m%f : %s"  % (motor_number, str([val_rad, val_count])))
 
 
         except Exception as e:
