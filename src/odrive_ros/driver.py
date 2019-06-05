@@ -30,8 +30,8 @@ class odrive_object:
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.cmd_setpoint = None
-        # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
-        self.drive_mode = CTRL_MODE_POSITION_CONTROL
+        self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
+        #self.drive_mode = CTRL_MODE_POSITION_CONTROL
 	self.current_limit = 3.5
 
     def command_callback(self, msg):
@@ -55,6 +55,10 @@ class odrive_object:
             axis.controller.current_setpoint = 0.0
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
+	    if axis.controller == CTRL_MODE_TRAJECTORY_CONTROL:
+		axis.controller.trap_traj.config.accel_limit = 200000
+		axis.controller.trap_traj.config.decel_limit = 200000
+		axis.controller.trap_traj.config.A_per_css = 0
         return True
 
     def disengage(self):
