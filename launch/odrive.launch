@@ -3,10 +3,10 @@
     <arg name="connect_on_startup"   default="true"/>
     <arg name="calibrate_on_startup" default="true"/>
     <arg name="engage_on_startup"    default="true"/>
-    <arg name="od_FL_leg_id"         default="206A3398304B"/>
-    <arg name="od_FR_leg_id"         default="2069339B304B"/>
+    <arg name="od_FL_leg_id"         default=""/>
+    <arg name="od_FR_leg_id"         default=""/>
     <arg name="od_BL_leg_id"         default=""/>
-    <arg name="od_BR_leg_id"         default=""/>
+    <arg name="od_BR_leg_id"         default="206A3378304B"/>
     <arg name="od_F_hip_id"          default=""/>
     <arg name="od_B_hip_id"          default=""/>
 

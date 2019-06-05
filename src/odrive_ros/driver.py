@@ -30,8 +30,9 @@ class odrive_object:
         rospy.Subscriber("/jelly_hardware/odrives/" + str(port) + "/command", Float64MultiArray, self.command_callback)
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.cmd_setpoint = None
-        # self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
-        self.drive_mode = CTRL_MODE_POSITION_CONTROL
+        self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
+        #self.drive_mode = CTRL_MODE_POSITION_CONTROL
+	self.current_limit = 3.5
 
     def command_callback(self, msg):
         # (m0 command, m0 ctr_mode, m1 command, m1 ctrl_mode)
@@ -54,6 +55,10 @@ class odrive_object:
             axis.controller.current_setpoint = 0.0
             axis.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             axis.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
+	    if axis.controller == CTRL_MODE_TRAJECTORY_CONTROL:
+		axis.controller.trap_traj.config.accel_limit = 200000
+		axis.controller.trap_traj.config.decel_limit = 200000
+		axis.controller.trap_traj.config.A_per_css = 0
         return True
 
     def disengage(self):
@@ -78,7 +83,9 @@ class odrive_object:
             axis.trap_traj.config.decel_limit = traj_values[2]
             axis.trap_traj.config.A_per_css = traj_values[3]
 
-            axis.motor.config.current_lim = 6
+            axis.motor.config.current_lim = self.current_limit
+	    axis.motor.config.requested_current_range = 10.0
+            axis.controller.config.vel_limit_tolerance = 10.2 # disables velocity limit, TODO: fix this
 
 
     def process_cmd_setpoint(self):
@@ -107,8 +114,9 @@ class odrive_object:
 
     def clear_errors(self, event):
         # Non-critical code for clearing error states. To be run with ros.timer
-        if port == "207C37863548" and self.driver.axis0.error:
-            rospy.logerr(self.driver.axis0.error)
+        if self.driver.axis0.error or self.driver.axis1.error:
+            rospy.logerr("Axis Error %s %s" % (self.driver.axis0.error, self.driver.axis1.error))
+            rospy.logerr("Controller Error %s %s" % (self.driver.axis0.controller.error, self.driver.axis1.controller.error))
         o_utils.dump_errors(self.driver, clear=True)
 
     def publish_state(self):
@@ -116,8 +124,11 @@ class odrive_object:
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         cur0 = self.driver.axis0.motor.current_control.Iq_measured
         cur1 = self.driver.axis1.motor.current_control.Iq_measured
+        vel0 = self.driver.axis0.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+        vel1 = self.driver.axis1.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+
         msg = Float64MultiArray()
-        msg.data = [pos0, pos1, cur0, cur1]
+        msg.data = [pos0, pos1, cur0, cur1, vel0, vel1]
         # units of published left and right are in radians
         self.state_pub.publish(msg)
 
@@ -137,7 +148,7 @@ class odrive_object:
             else:
                 axis.controller.pos_setpoint = val_count
 
-            rospy.logerr("drive_pos_single on m%f : %s"  % (motor_number, str([val_rad, val_count])))
+            # rospy.logerr("drive_pos_single on m%f : %s"  % (motor_number, str([val_rad, val_count])))
 
 
         except Exception as e:
@@ -171,8 +182,9 @@ class odrive_object:
             raise e
 
     def torque_to_current(self, torque):
-
-        return torque * 100.0  / 8.27
+        target_current = torque * 100.0  / 8.27
+        return min(target_current, self.current_limit)
+        
 
     def drive_torque(self, left, right):
         try:
