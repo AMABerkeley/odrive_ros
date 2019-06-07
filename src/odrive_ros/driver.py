@@ -31,8 +31,8 @@ class odrive_object:
         self.state_pub = rospy.Publisher("/jelly_hardware/odrives/" + str(port) + "/state", Float64MultiArray, queue_size=1)
         self.cmd_setpoint = None
         self.drive_mode = CTRL_MODE_TRAJECTORY_CONTROL
-        #self.drive_mode = CTRL_MODE_POSITION_CONTROL
-	self.current_limit = 3.5
+        # self.drive_mode = CTRL_MODE_POSITION_CONTROL
+        self.current_limit = 4.5
 
     def command_callback(self, msg):
         # (m0 command, m0 ctr_mode, m1 command, m1 ctrl_mode)
@@ -122,10 +122,14 @@ class odrive_object:
     def publish_state(self):
         pos0 = self.driver.axis0.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
         pos1 = self.driver.axis1.encoder.pos_estimate / float(self.cpr) * 2 * np.pi
-        cur0 = self.driver.axis0.motor.current_control.Iq_measured
-        cur1 = self.driver.axis1.motor.current_control.Iq_measured
-        vel0 = self.driver.axis0.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
-        vel1 = self.driver.axis1.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+        # cur0 = self.driver.axis0.motor.current_control.Iq_measured
+        # cur1 = self.driver.axis1.motor.current_control.Iq_measured
+        cur0 = 0
+        cur1 = 0
+        # vel0 = self.driver.axis0.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+        # vel1 = self.driver.axis1.encoder.vel_estimate / float(self.cpr) * 2 * np.pi
+        vel0 = 0
+        vel1 = 0
 
         msg = Float64MultiArray()
         msg.data = [pos0, pos1, cur0, cur1, vel0, vel1]
